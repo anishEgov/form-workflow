@@ -1,141 +1,210 @@
-# 🧩 Form Workflow Engine
 
-A configurable and extensible **Form Workflow Engine** built using **Spring Boot**, **PostgreSQL**, and **Keycloak** for authentication and role-based authorization.  
-This project  showcases a real-world, production-quality implementation of dynamic forms and workflow management.
+# 🧩 Configurable Form and Workflow Engine
+
+A lightweight, modular backend system that allows:
+- Admins to define dynamic forms
+- Admins to configure state-machine-based workflows
+- Users to submit forms and trigger workflows
+- Role-based workflow transitions via Keycloak authentication
+
+---
+
+## 🚀 Problem Statement
+
+Organizations often need customizable processes like leave applications, approvals, or expense reimbursements. Instead of hardcoding each workflow, this system enables:
+- Dynamic form creation using JSON schema
+- Configurable workflows via state machines
+- Workflow execution driven by form submissions
+- Role-based transitions, all managed via Keycloak
 
 ---
 ## ✨ Postman Collection - [URL](https://orange-crescent-418337.postman.co/workspace/birth-reg~9e92836c-7e82-44be-a3d1-0d263fba06fe/collection/35025473-d656cf6d-e586-4ebd-b574-c8085993d0cd?action=share&source=copy-link&creator=35025473)
 
+## 🧠 Design Approach
 
----
-
-## ✨ Features
-
-- 🔐 **Authentication & Authorization** via Keycloak (JWT + Roles)
-- 📄 Dynamic **Form Submission API** (user-defined schema support)
-- 🔄 Configurable **Workflow Engine** (multi-state, role-based transitions)
-- 🧠 Business-Service-driven architecture (define states, actions, roles)
-- 📜 View current state & full transition history of any form
-- 🌐 Multi-tenant architecture support
-- ☁️ Designed with clean separation: Controller → Service → Repository layers
-
----
-
-## 🏗️ Tech Stack
-
-| Layer               | Technology                   |
-|--------------------|------------------------------|
-| Backend Framework  | Spring Boot 3.x              |
-| Auth Provider      | Keycloak                     |
-| Data Store         | PostgreSQL                   |
-| Token Parsing      | `jjwt` + public key (JWKS)   |
-| Build Tool         | Maven                        |
-| Infra Support      | Docker (optional)            |
-
----
-
-## 🔑 Key Concepts
-
-- **BusinessService**: Defines a workflow (states, actions, SLA, roles).
-- **WorkflowInstance**: Runtime representation of a form moving through workflow.
-- **FormData**: Dynamic user-submitted form stored as JSON (`Map<String, Object>`).
-- **WorkflowHistory**: Auditable history of transitions with timestamp and actor.
-- **Role Matching**: Transition allowed only if user's Keycloak roles match allowed roles in workflow config.
-
----
-
-## 🚀 How to Run Locally
-
-### 🔧 Requirements
-
-- Java 17+
-- PostgreSQL (with a schema created)
-- Maven
-- Keycloak (local or cloud)
-
-### 🔌 PostgreSQL Setup
-
-```sql
-CREATE DATABASE formworkflow;
+### 🔧 1. Form Configuration
+- Admins can POST form schemas via `/forms/config/_create`.
+- Schema format:
+```json
+{
+  "schemaCode": "leave-application",
+  "fields": [
+    { "name": "reason", "type": "text", "required": true },
+    { "name": "from_date", "type": "date" },
+    { "name": "to_date", "type": "date" }
+  ]
+}
 ```
 
-Update your `application.properties`:
+---
 
+### 🔄 2. Workflow Configuration
+- Admins define workflows via `/wf/businessservice/_create`.
+- Workflow is modeled as a `BusinessService` with:
+  - States (`StateDefinition`)
+  - Actions (`ActionDefinition`) containing allowed roles and next state.
+
+Example:
+```json
+{
+  "businessService": "leave-workflow",
+  "business": "form-workflow",
+  "states": [
+    {
+      "state": "Draft",
+      "isStartState": true,
+      "actions": [
+        {
+          "action": "SUBMIT",
+          "nextState": "Review",
+          "roles": ["ROLE_EMPLOYEE"]
+        }
+      ]
+    },
+    {
+      "state": "Review",
+      "actions": [
+        {
+          "action": "APPROVE",
+          "nextState": "Approved",
+          "roles": ["ROLE_MANAGER"]
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### 📝 3. Form Submission & Workflow Execution
+- Endpoint: `/forms/data/_submit`
+- Validates input using form schema
+- Creates a `WorkflowInstance` in the start state
+- Each submission is associated with a unique workflow instance
+
+---
+
+### 🔄 4. Workflow Transition
+- Endpoint: `/wf/process/_transition`
+- Authenticated users (via Keycloak JWT) can perform allowed actions
+- Role-based authorization validated against `ActionDefinition.roles`
+
+---
+
+### 🔐 5. Authentication & Role Management
+- Integrated with **Keycloak**:
+  - JWT tokens are validated using JWKS URL
+  - Roles extracted from `realm_access.roles`
+  - Used with Spring Security and custom `JwtAuthenticationFilter`
+- Role mapping follows Spring convention: `ROLE_MANAGER`, `ROLE_EMPLOYEE`, etc.
+
+---
+
+## ⚙️ Tech Stack
+
+- Java 17 + Spring Boot 3.x
+- PostgreSQL (Database)
+- Spring Security (Stateless, JWT)
+- Keycloak (Identity Provider)
+- Docker (optional)
+
+---
+
+## 📂 Project Modules
+
+```
+form-workflow-engine/
+├── config/                 # Spring + Keycloak configuration
+├── controller/             # REST APIs
+├── dto/                    # Request/Response models
+├── model/                  # JPA entities (Form, WorkflowInstance, State, etc.)
+├── repository/             # Spring Data Repos
+├── security/               # JWT Filter, JWKS decoding
+├── service/                # Business logic
+└── application.properties
+```
+
+---
+
+## 🔧 Setup Instructions
+
+### ✅ Prerequisites
+- Java 17+
+- PostgreSQL running on port `5432`
+- Keycloak setup with:
+  - Realm (e.g., `workflow`)
+  - Client configured with `RS256`
+  - Roles: `EMPLOYEE`, `MANAGER`, `ADMIN`, etc.
+
+### 🔑 Application Properties
 ```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/formworkflow
+server.port=8080
+spring.datasource.url=jdbc:postgresql://localhost:5432/workflow
 spring.datasource.username=<username>
 spring.datasource.password=<password>
+
+keycloak.jwks-url=http://localhost:8080/realms/workflow/protocol/openid-connect/certs
 ```
 
-### 🔐 Keycloak Setup
+### 🧪 Run the App
+```bash
+./mvnw spring-boot:run
+```
 
-1. Create a realm `form-engine`
-2. Create roles: `ADMIN`, `MANAGER`, `EMPLOYEE`, etc.
-3. Create users and assign roles
-4. Get the JWKS endpoint:  
-   `http://localhost:8080/realms/form-engine/protocol/openid-connect/certs`
 
-Update `application.properties`:
 
-```properties
-keycloak.jwks-url=http://localhost:8080/realms/form-engine/protocol/openid-connect/certs
+---
+
+## 🔐 Keycloak Setup (Minimal)
+1. Create Realm: `workflow`
+2. Create Client: `workflow-client` (confidential, access type = bearer-only)
+3. Add roles: `EMPLOYEE`, `MANAGER`, `HR`, `ADMIN`
+4. Create users with assigned roles
+5. Get token:
+```bash
+curl -X POST \
+  http://localhost:8080/realms/workflow/protocol/openid-connect/token \
+  -d "grant_type=password" \
+  -d "client_id=workflow-client" \
+  -d "client_secret=workflow-client" \
+  -d "username=employee1" \
+  -d "password=123456"
 ```
 
 ---
 
-## 📮 API Overview
+## 🧪 API Overview
 
-### 🔹 Submit Form (Public)
-
-```bash
-curl -X POST http://localhost:8280/forms/data/_submit   -H 'Content-Type: application/json'   -d '{
-        "formType": "leave-request",
-        "businessService": "LEAVE_FLOW",
-        "tenantId": "pb",
-        "data": {
-            "startDate": "2025-07-01",
-            "endDate": "2025-07-03",
-            "reason": "Personal"
-        },
-        "submittedBy": "user-uuid"
-      }'
-```
+| Action | Endpoint | Auth Required | Role Required |
+|--------|----------|---------------|----------------|
+| Submit Form | `/forms/data/_submit` | ❌ No | - |
+| Create Form Config | `/forms/config/_create` | ✅ Yes | `ADMIN` |
+| Create Workflow Config | `/wf/businessservice/_create` | ✅ Yes | `ADMIN` |
+| Transition Workflow | `/wf/process/_transition` | ✅ Yes | Based on state |
+| Get Workflow Instance | `/wf/process/instance/{formId}` | ❌ No | - |
+| Get Workflow History | `/wf/process/history/{formId}` | ❌ No | - |
 
 ---
 
-### 🔹 Transition Workflow (JWT Required)
+## 📌 Assumptions
 
-```bash
-curl -X POST http://localhost:8280/wf/process/_transition   -H 'Authorization: Bearer <access-token>'   -H 'Content-Type: application/json'   -d '{
-        "RequestInfo": {
-            "userInfo": {
-                "uuid": "user-uuid",
-                "roles": []
-            }
-        },
-        "processInstances": [{
-            "tenantId": "pb",
-            "businessService": "LEAVE_FLOW",
-            "formInstanceId": "<form-id>",
-            "action": "APPROVE",
-            "assignees": ["next-user-uuid"],
-            "comment": "Approved by manager"
-        }]
-      }'
-```
+- Admins use Postman or Admin UI to configure forms/workflows
+- User roles are provisioned in Keycloak only
+- No frontend included (optional React/Next UI possible)
+- All validations are done manually using schema JSON
+- Stateless JWT-only auth
 
 ---
 
-### 🔹 Get Current State
+## 📚 Future Improvements
 
-```bash
-GET /wf/process/instance/{formId}?tenantId=pb
-```
+- UI using React or Angular
+- Notifications on state transitions
+- WebSocket integration for live updates
+- Versioning of form schemas
+- Exportable audit logs
 
 ---
 
-### 🔹 Get Transition History
 
-```bash
-GET /wf/process/history/{formId}?tenantId=pb
-```
