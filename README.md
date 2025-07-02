@@ -18,7 +18,7 @@ Organizations often need customizable processes like leave applications, approva
 - Role-based transitions, all managed via Keycloak
 
 ---
-## ✨ Postman Collection - [URL](https://orange-crescent-418337.postman.co/workspace/birth-reg~9e92836c-7e82-44be-a3d1-0d263fba06fe/collection/35025473-d656cf6d-e586-4ebd-b574-c8085993d0cd?action=share&source=copy-link&creator=35025473)
+## ✨ Postman Collection - [URL](https://github.com/anishEgov/form-workflow/blob/main/Form%20Workflow%20API.postman_collection.json)
 
 ## 🧠 Design Approach
 
